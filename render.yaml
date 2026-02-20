@@ -1,0 +1,31 @@
+services:
+  # Backend API Server
+  - type: web
+    name: signflow-api
+    env: node
+    buildCommand: cd server && npm install && npx prisma generate && npm run build
+    startCommand: cd server && npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: signflow-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+    autoDeploy: true
+    repo: https://github.com/YOUR_USERNAME/signflow-manager
+
+  # Frontend Web App
+  - type: web
+    name: signflow-web
+    env: static
+    buildCommand: cd client && npm install && npm run build
+    publishDir: client/dist
+    autoDeploy: true
+    repo: https://github.com/YOUR_USERNAME/signflow-manager
+
+databases:
+  - name: signflow-db
+    plan: free
+    databaseName: signflow
+    user: signflow
