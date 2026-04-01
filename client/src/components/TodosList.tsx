@@ -76,7 +76,7 @@ export default function TodosList() {
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
 
-    const { draggableId, source, destination } = result;
+    const { source, destination } = result;
 
     // Only allow reordering within the pending list
     if (source.droppableId !== 'pending' || destination.droppableId !== 'pending') {
