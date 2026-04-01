@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    { "source": "/api/jobs/stats/overview", "destination": "/api/jobs" },
+    { "source": "/api/jobs/:path*", "destination": "/api/jobs" },
+    { "source": "/api/jobs", "destination": "/api/jobs" },
+    { "source": "/api/reorder", "destination": "/api/reorder" },
+    { "source": "/api/todos/:path*", "destination": "/api/todos" },
+    { "source": "/api/todos", "destination": "/api/todos" },
+    { "source": "/api/referrals/:path*", "destination": "/api/referrals" },
+    { "source": "/api/referrals", "destination": "/api/referrals" },
+    { "source": "/((?!api).*)", "destination": "/index.html" }
+  ]
+}

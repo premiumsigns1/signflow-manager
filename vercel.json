@@ -1,5 +1,10 @@
 {
-  "build": {
-    "outputDirectory": "client/dist"
-  }
+  "buildCommand": "cd client && npm install && npm run build",
+  "outputDirectory": "client/dist",
+  "rewrites": [
+    { "source": "/api/jobs/stats/overview", "destination": "/api/jobs" },
+    { "source": "/api/jobs/:path*", "destination": "/api/jobs" },
+    { "source": "/api/jobs", "destination": "/api/jobs" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

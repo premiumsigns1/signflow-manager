@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Job, useJobs } from '@/context/JobsContext';
 import { cn, STATUSES, STATUS_COLORS, formatDate } from '@/lib/utils';
-import { X, Calendar, User, FileText, Link as LinkIcon, Package, Clock, CheckCircle } from 'lucide-react';
+import { X, Calendar, User, FileText, Link as LinkIcon, Package, Clock, CheckCircle, CreditCard } from 'lucide-react';
+import { PAYMENT_STATUSES } from '@/lib/utils';
 
 interface JobModalProps {
   job: Job;
@@ -107,6 +108,32 @@ export default function JobModal({ job, onClose }: JobModalProps) {
             >
               {STATUSES.map((status) => (
                 <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Payment Status */}
+          <div>
+            <label className="text-xs font-medium text-secondary-500 uppercase flex items-center gap-1">
+              <CreditCard className="w-3 h-3" />
+              Payment Status
+            </label>
+            <select
+              value={editData.paymentStatus || ''}
+              onChange={async (e) => {
+                const val = e.target.value;
+                setEditData({ ...editData, paymentStatus: val });
+                try {
+                  await updateJob(job.id, { paymentStatus: val });
+                } catch (err) {
+                  console.error('Failed to update payment status:', err);
+                }
+              }}
+              className="input mt-1"
+            >
+              <option value="">Not set</option>
+              {PAYMENT_STATUSES.map((s) => (
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>

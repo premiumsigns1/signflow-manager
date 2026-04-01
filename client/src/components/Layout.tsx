@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useJobs } from '@/context/JobsContext';
@@ -11,6 +11,11 @@ import {
   LogOut,
   Menu,
   User,
+  Download,
+  Upload,
+  Users,
+  CheckSquare,
+  Sparkles,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -20,11 +25,15 @@ interface LayoutProps {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Jobs', href: '/jobs', icon: Kanban },
+  { name: 'Quote Assistant', href: '/quote', icon: Sparkles },
+  { name: 'Referrals', href: '/referrals', icon: Users },
+  { name: 'Todos', href: '/todos', icon: CheckSquare },
 ];
 
 export default function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
-  const { fetchJobs } = useJobs();
+  const { jobs, fetchJobs } = useJobs();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -41,6 +50,37 @@ export default function Layout({ children }: LayoutProps) {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleExport = () => {
+    const data = JSON.stringify(jobs, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `signflow-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importedJobs = JSON.parse(event.target?.result as string);
+        if (Array.isArray(importedJobs)) {
+          localStorage.setItem('signflow_jobs', JSON.stringify(importedJobs));
+          fetchJobs();
+          alert(`Imported ${importedJobs.length} jobs successfully!`);
+        }
+      } catch {
+        alert('Invalid file format');
+      }
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -145,6 +185,27 @@ export default function Layout({ children }: LayoutProps) {
             </div>
 
             <div className="flex items-center gap-3">
+              <button
+                onClick={handleExport}
+                className="p-2 text-secondary-600 hover:bg-secondary-100 rounded-lg"
+                title="Export data"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2 text-secondary-600 hover:bg-secondary-100 rounded-lg"
+                title="Import data"
+              >
+                <Upload className="w-4 h-4" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImport}
+                className="hidden"
+              />
               <Link
                 to="/jobs"
                 className="btn-primary"

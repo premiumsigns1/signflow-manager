@@ -1,20 +1,26 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useJobs } from '@/context/JobsContext';
 import { cn, STATUSES, STATUS_COLORS, STATUS_BORDER_COLORS, formatDate } from '@/lib/utils';
 import JobModal from '@/components/JobModal';
 import CreateJobModal from '@/components/CreateJobModal';
-import { LayoutGrid, List, Search, Plus } from 'lucide-react';
+import { LayoutGrid, List, Search, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { PAYMENT_STATUS_COLORS } from '@/lib/utils';
 
 export default function Jobs() {
-  const { jobs, updateJobStatus, fetchJobs } = useJobs();
+  const { jobs, setJobs, updateJobStatus, fetchJobs } = useJobs();
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all');
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [collapsedColumns, setCollapsedColumns] = useState<Record<string, boolean>>({});
 
   const filteredJobs = useMemo(() => {
     let result = [...jobs];
@@ -47,15 +53,48 @@ export default function Jobs() {
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
 
-    const { draggableId, destination } = result;
+    const { draggableId, source, destination } = result;
     const newStatus = destination.droppableId;
+    const oldStatus = source.droppableId;
 
-    if (newStatus && newStatus !== result.source.droppableId) {
-      try {
-        await updateJobStatus(draggableId, newStatus);
-      } catch (error) {
-        console.error('Failed to update job status:', error);
-      }
+    // Build updated jobs list optimistically
+    const updatedJobs = [...jobs];
+    const draggedIdx = updatedJobs.findIndex(j => j.id === draggableId);
+    if (draggedIdx === -1) return;
+
+    const [dragged] = updatedJobs.splice(draggedIdx, 1);
+    dragged.currentStatus = newStatus;
+
+    // Find insertion point in the destination column
+    const destJobs = updatedJobs.filter(j => j.currentStatus === newStatus);
+    const insertIdx = destination.index;
+    const insertBeforeJob = destJobs[insertIdx];
+    const insertAt = insertBeforeJob ? updatedJobs.indexOf(insertBeforeJob) : updatedJobs.length;
+    updatedJobs.splice(insertAt, 0, dragged);
+
+    // Recalculate sortOrder for affected column(s)
+    const columnsToUpdate = new Set([newStatus, oldStatus]);
+    const orders: { id: string; sortOrder: number }[] = [];
+    columnsToUpdate.forEach(col => {
+      updatedJobs.filter(j => j.currentStatus === col).forEach((j, i) => {
+        j.sortOrder = i;
+        orders.push({ id: j.id, sortOrder: i });
+      });
+    });
+
+    // Update UI immediately
+    setJobs(updatedJobs);
+
+    // Persist
+    try {
+      if (newStatus !== oldStatus) await updateJobStatus(draggableId, newStatus);
+      await fetch('/api/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders }),
+      });
+    } catch (error) {
+      console.error('Failed to save order:', error);
     }
   };
 
@@ -69,6 +108,13 @@ export default function Jobs() {
   };
 
   const selectedJob = selectedJobId ? jobs.find((j) => j.id === selectedJobId) : null;
+
+  const toggleColumn = (status: string) => {
+    setCollapsedColumns(prev => ({
+      ...prev,
+      [status]: !prev[status]
+    }));
+  };
 
   return (
     <div className="space-y-4">
@@ -153,25 +199,43 @@ export default function Jobs() {
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4">
             {STATUSES.map((status) => (
-              <div key={status} className="flex-shrink-0 w-72">
+              <div key={status} className={cn('flex-shrink-0', collapsedColumns[status] ? 'w-12' : 'w-72')}>
                 <div
                   className={cn(
                     'bg-secondary-100 rounded-lg p-3',
                     status === 'Quote/Pending' && 'border-t-4 border-t-warning',
+                    status === 'Quoted/Awaiting' && 'border-t-4 border-t-yellow-500',
                     status === 'Ready for Proofing' && 'border-t-4 border-t-primary',
                     status === 'Awaiting Proof Approval' && 'border-t-4 border-t-violet-500',
-                    status === 'Materials Ordered' && 'border-t-4 border-t-cyan-500',
+                    status === 'Order Materials' && 'border-t-4 border-t-cyan-500',
                     status === 'Manufacturing/Production' && 'border-t-4 border-t-pink-500',
                     status === 'Ready for Dispatch/Installation' && 'border-t-4 border-t-orange-500',
                     status === 'Completed/Delivered' && 'border-t-4 border-t-success'
                   )}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-secondary-900 text-sm">{status}</h3>
-                    <span className="bg-white px-2 py-0.5 rounded-full text-xs font-medium text-secondary-600">
-                      {jobsByStatus[status]?.length || 0}
-                    </span>
+                    {!collapsedColumns[status] && (
+                      <>
+                        <h3 className="font-semibold text-secondary-900 text-sm">{status}</h3>
+                        <span className="bg-white px-2 py-0.5 rounded-full text-xs font-medium text-secondary-600">
+                          {jobsByStatus[status]?.length || 0}
+                        </span>
+                      </>
+                    )}
+                    <button
+                      onClick={() => toggleColumn(status)}
+                      className="p-1 hover:bg-secondary-200 rounded transition-colors ml-auto"
+                      title={collapsedColumns[status] ? 'Expand' : 'Collapse'}
+                    >
+                      {collapsedColumns[status] ? (
+                        <ChevronRight className="w-4 h-4 text-secondary-600" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-secondary-600" />
+                      )}
+                    </button>
                   </div>
+
+                  {!collapsedColumns[status] && (
 
                   <Droppable droppableId={status}>
                     {(provided, snapshot) => (
@@ -223,6 +287,16 @@ export default function Jobs() {
                                     </span>
                                   )}
                                 </div>
+                                {job.paymentStatus && (
+                                  <div className="mt-2 pt-2 border-t border-secondary-100">
+                                    <span className={cn(
+                                      'text-xs font-medium px-2 py-0.5 rounded border',
+                                      PAYMENT_STATUS_COLORS[job.paymentStatus] || 'bg-secondary-100 text-secondary-600 border-secondary-200'
+                                    )}>
+                                      {job.paymentStatus}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </Draggable>
@@ -231,6 +305,7 @@ export default function Jobs() {
                       </div>
                     )}
                   </Droppable>
+                  )}
                 </div>
               </div>
             ))}

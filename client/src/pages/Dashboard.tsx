@@ -12,11 +12,12 @@ import {
 } from 'lucide-react';
 
 export default function Dashboard() {
-  const { stats, jobs, fetchStats, isLoading } = useJobs();
+  const { stats, jobs, fetchStats, fetchJobs, isLoading } = useJobs();
 
   useEffect(() => {
+    fetchJobs();
     fetchStats();
-  }, [fetchStats]);
+  }, [fetchJobs, fetchStats]);
 
   const recentJobs = jobs.slice(0, 5);
 

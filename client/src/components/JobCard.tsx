@@ -1,5 +1,5 @@
 import { Job } from '@/context/JobsContext';
-import { cn, STATUS_BORDER_COLORS, formatDate } from '@/lib/utils';
+import { cn, STATUS_BORDER_COLORS, PAYMENT_STATUS_COLORS, formatDate } from '@/lib/utils';
 import { Calendar, User } from 'lucide-react';
 
 interface JobCardProps {
@@ -28,16 +28,16 @@ export default function JobCard({ job, onClick }: JobCardProps) {
           </span>
         )}
       </div>
-      
+
       <p className="font-medium text-secondary-900 text-sm mb-1 line-clamp-1">
         {job.clientName}
       </p>
-      
+
       <p className="text-xs text-secondary-500 line-clamp-2 mb-3">
         {job.jobDescription}
       </p>
-      
-      <div className="flex items-center justify-between text-xs text-secondary-500">
+
+      <div className="flex items-center justify-between gap-1 flex-wrap text-xs text-secondary-500">
         {job.targetDate && (
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
@@ -51,6 +51,17 @@ export default function JobCard({ job, onClick }: JobCardProps) {
           </span>
         )}
       </div>
+
+      {job.paymentStatus && (
+        <div className="mt-2 pt-2 border-t border-secondary-100">
+          <span className={cn(
+            'text-xs font-medium px-2 py-0.5 rounded border',
+            PAYMENT_STATUS_COLORS[job.paymentStatus] || 'bg-secondary-100 text-secondary-600 border-secondary-200'
+          )}>
+            {job.paymentStatus}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

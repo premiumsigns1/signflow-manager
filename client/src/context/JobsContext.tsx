@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
-// API_BASE would be used for cloud storage
+const API_BASE = '/api';
 
 // Types
 export interface Job {
@@ -13,6 +13,8 @@ export interface Job {
   paymentDate: string | null;
   targetDate: string | null;
   currentStatus: string;
+  paymentStatus: string | null;
+  sortOrder: number;
   assignedTo: string | null;
   proofLink: string | null;
   materialsNeeded: string | null;
@@ -38,6 +40,7 @@ export interface UpdateJobData {
   targetDate?: string | null;
   paymentDate?: string | null;
   currentStatus?: string;
+  paymentStatus?: string | null;
   assignedTo?: string | null;
   proofLink?: string | null;
   materialsNeeded?: string | null;
@@ -56,6 +59,7 @@ export interface JobStats {
 
 interface JobsContextType {
   jobs: Job[];
+  setJobs: React.Dispatch<React.SetStateAction<Job[]>>;
   stats: JobStats | null;
   isLoading: boolean;
   error: string | null;
@@ -71,64 +75,16 @@ interface JobsContextType {
 
 const JobsContext = createContext<JobsContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'signflow_jobs';
-let jobCounter = 1;
-
-function generateId(): string {
-  return `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
-function getNextDisplayId(): string {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    const jobs: Job[] = JSON.parse(stored);
-    if (jobs.length > 0) {
-      const maxNum = jobs.reduce((max, job) => {
-        const num = parseInt(job.displayId.replace('SIGN-', ''));
-        return num > max ? num : max;
-      }, 0);
-      jobCounter = maxNum + 1;
-    }
-  }
-  const id = `SIGN-${String(jobCounter).padStart(3, '0')}`;
-  jobCounter++;
-  return id;
-}
-
-function calculateStats(jobs: Job[]): JobStats {
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  
-  const totalJobs = jobs.length;
-  const completedJobs = jobs.filter(j => j.currentStatus === 'Completed/Delivered').length;
-  const awaitingApproval = jobs.filter(j => j.currentStatus === 'Awaiting Proof Approval').length;
-  const overdueJobs = jobs.filter(j => 
-    j.targetDate && new Date(j.targetDate) < now && j.currentStatus !== 'Completed/Delivered'
-  ).length;
-  const jobsThisMonth = jobs.filter(j => new Date(j.createdAt) >= startOfMonth).length;
-  
-  const statusCounts: Record<string, number> = {};
-  jobs.forEach(job => {
-    statusCounts[job.currentStatus] = (statusCounts[job.currentStatus] || 0) + 1;
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
   });
-  
-  const statusBreakdown = Object.entries(statusCounts).map(([status, count]) => ({
-    status,
-    count,
-  }));
-  
-  return {
-    totalJobs,
-    completedJobs,
-    awaitingApproval,
-    overdueJobs,
-    jobsThisMonth,
-    statusBreakdown,
-  };
-}
-
-function saveJobs(jobs: Job[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs));
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || 'Request failed');
+  }
+  return res.json();
 }
 
 export function JobsProvider({ children }: { children: React.ReactNode }) {
@@ -138,45 +94,18 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const jobsData = JSON.parse(stored);
-        setJobs(jobsData);
-        setStats(calculateStats(jobsData));
-      } catch (e) {
-        console.error('Failed to parse stored jobs:', e);
-      }
-    }
-  }, []);
-
   const fetchJobs = useCallback(async (params?: { status?: string; search?: string; assignedTo?: string }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      let jobsData: Job[] = stored ? JSON.parse(stored) : [];
-      
-      if (params?.status && params.status !== 'all') {
-        jobsData = jobsData.filter(j => j.currentStatus === params.status);
-      }
-      
-      if (params?.assignedTo && params.assignedTo !== 'all') {
-        jobsData = jobsData.filter(j => j.assignedTo === params.assignedTo);
-      }
-      
-      if (params?.search) {
-        const search = params.search.toLowerCase();
-        jobsData = jobsData.filter(j => 
-          j.clientName.toLowerCase().includes(search) ||
-          j.displayId.toLowerCase().includes(search) ||
-          j.jobDescription.toLowerCase().includes(search)
-        );
-      }
-      
-      jobsData.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      setJobs(jobsData);
+      const qs = new URLSearchParams();
+      if (params?.status && params.status !== 'all') qs.set('status', params.status);
+      if (params?.search) qs.set('search', params.search);
+      if (params?.assignedTo && params.assignedTo !== 'all') qs.set('assignedTo', params.assignedTo);
+
+      const query = qs.toString();
+      const data = await apiFetch<Job[]>(`/jobs${query ? `?${query}` : ''}`);
+      setJobs(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch jobs');
     } finally {
@@ -186,82 +115,50 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
 
   const fetchStats = useCallback(async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const jobsData: Job[] = stored ? JSON.parse(stored) : [];
-      setStats(calculateStats(jobsData));
+      const data = await apiFetch<JobStats>('/jobs/stats/overview');
+      setStats(data);
     } catch (err) {
       console.error('Failed to fetch stats:', err);
     }
   }, []);
 
   const createJob = async (data: CreateJobData): Promise<Job> => {
-    const now = new Date();
-    const nowStr = now.toISOString();
-    
-    const newJob: Job = {
-      id: generateId(),
-      displayId: getNextDisplayId(),
-      clientName: data.clientName || '',
-      clientContact: data.clientContact || '',
-      jobDescription: data.jobDescription || '',
-      orderDate: nowStr,
-      paymentDate: null,
-      targetDate: data.targetDate || null,
-      assignedTo: data.assignedTo || null,
-      proofLink: null,
-      materialsNeeded: null,
-      installationDate: null,
-      notes: data.notes || null,
-      currentStatus: 'Quote/Pending',
-      createdAt: nowStr,
-      updatedAt: nowStr,
-    };
-    
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const jobsData: Job[] = stored ? JSON.parse(stored) : [];
-    jobsData.unshift(newJob);
-    saveJobs(jobsData);
-    
-    setJobs(jobsData);
-    return newJob;
+    const job = await apiFetch<Job>('/jobs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    setJobs(prev => [job, ...prev]);
+    return job;
   };
 
   const updateJob = async (id: string, data: UpdateJobData): Promise<Job> => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const jobsData: Job[] = stored ? JSON.parse(stored) : [];
-    
-    const index = jobsData.findIndex(j => j.id === id);
-    if (index === -1) throw new Error('Job not found');
-    
-    const updatedJob: Job = {
-      ...jobsData[index],
-      ...data,
-      updatedAt: new Date().toISOString(),
-    };
-    
-    jobsData[index] = updatedJob;
-    saveJobs(jobsData);
-    setJobs(jobsData);
-    return updatedJob;
+    const job = await apiFetch<Job>(`/jobs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    setJobs(prev => prev.map(j => j.id === id ? job : j));
+    return job;
   };
 
   const updateJobStatus = async (id: string, currentStatus: string): Promise<Job> => {
-    return updateJob(id, { currentStatus });
+    const job = await apiFetch<Job>(`/jobs/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ currentStatus }),
+    });
+    setJobs(prev => prev.map(j => j.id === id ? job : j));
+    return job;
   };
 
   const deleteJob = async (id: string) => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const jobsData: Job[] = stored ? JSON.parse(stored) : [];
-    
-    const filteredJobs = jobsData.filter(j => j.id !== id);
-    saveJobs(filteredJobs);
-    setJobs(filteredJobs);
+    await apiFetch(`/jobs/${id}`, { method: 'DELETE' });
+    setJobs(prev => prev.filter(j => j.id !== id));
   };
 
   return (
     <JobsContext.Provider
       value={{
         jobs,
+        setJobs,
         stats,
         isLoading,
         error,
