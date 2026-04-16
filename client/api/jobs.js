@@ -12,6 +12,7 @@ const STATUS_MAP = {
   'Quoted / Sent': 'Quoted/Awaiting',
   'Materials Ordered': 'Order Materials',
   'Requested Review': 'Awaiting Proof Approval',
+  'Completed': 'Completed/Delivered',
 };
 
 function mapStatus(s) {
