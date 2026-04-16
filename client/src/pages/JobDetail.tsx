@@ -64,7 +64,9 @@ export default function JobDetail() {
   const handleArchive = async (shouldArchive: boolean) => {
     if (!job) return;
     try {
-      await archiveJob(job.id, shouldArchive);
+      const updated = await archiveJob(job.id, shouldArchive);
+      setJob(updated);
+      setEditData(updated);
       fetchStats();
     } catch (error) {
       console.error('Failed to archive job:', error);

@@ -72,7 +72,7 @@ interface JobsContextType {
   isLoading: boolean;
   error: string | null;
   fetchJobs: (params?: { status?: string; search?: string; assignedTo?: string; includeArchived?: boolean }) => Promise<void>;
-  archiveJob: (id: string, shouldArchive: boolean) => Promise<void>;
+  archiveJob: (id: string, shouldArchive: boolean) => Promise<Job>;
   fetchStats: () => Promise<void>;
   createJob: (data: CreateJobData) => Promise<Job>;
   updateJob: (id: string, data: UpdateJobData) => Promise<Job>;
@@ -164,13 +164,14 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
     setJobs(prev => prev.filter(j => j.id !== id));
   };
 
-  const archiveJob = async (id: string, shouldArchive: boolean) => {
+  const archiveJob = async (id: string, shouldArchive: boolean): Promise<Job> => {
     const job = await apiFetch<Job>(`/jobs/${id}/archive`, {
       method: 'PATCH',
       body: JSON.stringify({ archive: shouldArchive }),
     });
-    setJobs(prev => prev.map(j => j.id === id ? job : j));
+    setJobs(prev => prev.filter(j => j.id !== id));
     if (selectedJob?.id === id) setSelectedJob(job);
+    return job;
   };
 
   return (

@@ -340,6 +340,7 @@ export default function JobModal({ job, onClose, showArchiveControls = false }: 
                   if (confirm(`Are you sure you want to ${action} this job?`)) {
                     await archiveJob(job.id, job.archived !== 1);
                     fetchStats();
+                    onClose();
                   }
                 }}
                 className={`btn-sm ${job.archived === 1 ? 'btn-secondary' : 'btn-primary'}`}
@@ -377,6 +378,7 @@ export default function JobModal({ job, onClose, showArchiveControls = false }: 
                   if (confirm('Archive this completed job?')) {
                     await archiveJob(job.id, true);
                     fetchStats();
+                    onClose();
                   }
                 }}
                 className="btn-secondary"
@@ -391,6 +393,7 @@ export default function JobModal({ job, onClose, showArchiveControls = false }: 
                   if (confirm('Restore this job to active status?')) {
                     await archiveJob(job.id, false);
                     fetchStats();
+                    onClose();
                   }
                 }}
                 className="btn-secondary"
