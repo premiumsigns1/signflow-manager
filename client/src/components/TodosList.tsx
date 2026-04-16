@@ -10,6 +10,7 @@ interface Todo {
   status: 'pending' | 'done';
   priority: 'low' | 'medium' | 'high';
   dueDate: string | null;
+  sortOrder?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -23,6 +24,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 export default function TodosList() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -31,10 +33,17 @@ export default function TodosList() {
 
   const fetchTodos = async () => {
     try {
-      const data = await fetch('/api/todos').then(r => r.json());
-      setTodos(data);
+      setError(null);
+      const res = await fetch('/api/todos');
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to fetch todos');
+      }
+      setTodos(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to fetch todos:', e);
+      setTodos([]);
+      setError(e instanceof Error ? e.message : 'Failed to load todos');
     } finally {
       setLoading(false);
     }
@@ -124,6 +133,16 @@ export default function TodosList() {
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
     </div>
   );
+
+  if (error) {
+    return (
+      <div className="card p-6">
+        <h1 className="text-2xl font-bold text-secondary-900 mb-2">Todos</h1>
+        <p className="text-danger mb-4">{error}</p>
+        <button onClick={fetchTodos} className="btn-primary">Try again</button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
