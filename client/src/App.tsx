@@ -5,6 +5,7 @@ import Enter from '@/pages/Enter';
 import Dashboard from '@/pages/Dashboard';
 import Jobs from '@/pages/Jobs';
 import JobDetail from '@/pages/JobDetail';
+import ArchivedJobs from '@/pages/ArchivedJobs';
 import Referrals from '@/pages/Referrals';
 import Todos from '@/pages/Todos';
 import Quote from '@/pages/Quote';
@@ -40,6 +41,7 @@ export default function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/jobs" element={<Jobs />} />
                 <Route path="/jobs/:id" element={<JobDetail />} />
+                <Route path="/archived" element={<ArchivedJobs />} />
                 <Route path="/quote" element={<Quote />} />
                 <Route path="/referrals" element={<Referrals />} />
                 <Route path="/todos" element={<Todos />} />

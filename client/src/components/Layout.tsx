@@ -16,6 +16,7 @@ import {
   Users,
   CheckSquare,
   Sparkles,
+  Archive,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -25,6 +26,7 @@ interface LayoutProps {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Jobs', href: '/jobs', icon: Kanban },
+  { name: 'Archived', href: '/archived', icon: Archive },
   { name: 'Quote Assistant', href: '/quote', icon: Sparkles },
   { name: 'Referrals', href: '/referrals', icon: Users },
   { name: 'Todos', href: '/todos', icon: CheckSquare },

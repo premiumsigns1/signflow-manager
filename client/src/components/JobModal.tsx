@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { Job, useJobs } from '@/context/JobsContext';
 import { cn, STATUSES, STATUS_COLORS, formatDate } from '@/lib/utils';
-import { X, Calendar, User, FileText, Link as LinkIcon, Package, Clock, CheckCircle, CreditCard } from 'lucide-react';
+import { X, Calendar, User, FileText, Link as LinkIcon, Package, Clock, CheckCircle, CreditCard, Archive, RotateCcw, Flag } from 'lucide-react';
 import { PAYMENT_STATUSES } from '@/lib/utils';
 
 interface JobModalProps {
   job: Job;
   onClose: () => void;
+  showArchiveControls?: boolean;
 }
 
-export default function JobModal({ job, onClose }: JobModalProps) {
-  const { updateJob, updateJobStatus, fetchStats, deleteJob } = useJobs();
+export default function JobModal({ job, onClose, showArchiveControls = false }: JobModalProps) {
+  const { updateJob, updateJobStatus, archiveJob, deleteJob, fetchStats } = useJobs();
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<any>({
     ...job,
@@ -155,7 +156,7 @@ export default function JobModal({ job, onClose }: JobModalProps) {
             )}
           </div>
 
-          {/* Dates */}
+          {/* Target & Payment Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-secondary-500 uppercase flex items-center gap-1">
@@ -192,6 +193,28 @@ export default function JobModal({ job, onClose }: JobModalProps) {
                   {job.paymentDate ? formatDate(job.paymentDate) : 'Not paid'}
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* Start / Finish Dates */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-secondary-500 uppercase flex items-center gap-1">
+                <Flag className="w-3 h-3" />
+                Start Date
+              </label>
+              <p className="text-secondary-700 mt-1">
+                {job.startDate ? formatDate(job.startDate) : 'Not recorded'}
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-secondary-500 uppercase flex items-center gap-1">
+                <CheckCircle className="w-3 h-3" />
+                Finish Date
+              </label>
+              <p className="text-secondary-700 mt-1">
+                {job.finishDate ? formatDate(job.finishDate) : 'Not completed'}
+              </p>
             </div>
           </div>
 
@@ -296,20 +319,88 @@ export default function JobModal({ job, onClose }: JobModalProps) {
           </div>
         </div>
 
+        {/* Archive Section */}
+        {showArchiveControls && job.currentStatus === 'Completed/Delivered' && (
+          <div className="p-4 border-t border-secondary-200 bg-secondary-50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Archive className="w-4 h-4 text-secondary-600" />
+                <span className="text-sm font-medium text-secondary-700">
+                  {job.archived === 1 ? 'Archived' : 'Not archived'}
+                </span>
+                {job.archivedAt && (
+                  <span className="text-xs text-secondary-500">
+                    ({formatDate(job.archivedAt)})
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={async () => {
+                  const action = job.archived === 1 ? 'unarchive' : 'archive';
+                  if (confirm(`Are you sure you want to ${action} this job?`)) {
+                    await archiveJob(job.id, job.archived !== 1);
+                    fetchStats();
+                  }
+                }}
+                className={`btn-sm ${job.archived === 1 ? 'btn-secondary' : 'btn-primary'}`}
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                {job.archived === 1 ? 'Unarchive' : 'Archive'}
+              </button>
+            </div>
+            <p className="text-xs text-secondary-500 mt-2">
+              Archived jobs are hidden from the main Jobs view but remain searchable in the Archived section.
+            </p>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex justify-between gap-2 p-4 border-t border-secondary-200">
-          <button 
-            onClick={async () => {
-              if (confirm('Are you sure you want to delete this job?')) {
-                await deleteJob(job.id);
+          {/* Delete button at left */}
+          <button
+            onClick={() => {
+              if (confirm('Are you sure you want to delete this job? This cannot be undone.')) {
+                deleteJob(job.id);
                 onClose();
               }
-            }} 
+            }}
             className="btn-danger"
           >
             Delete Job
           </button>
-          <div className="flex gap-2">
+
+          <div className="flex gap-2 ml-auto">
+            {/* Archive toggle in modal when archive controls are enabled */}
+            {showArchiveControls && job.currentStatus === 'Completed/Delivered' && job.archived === 0 && (
+              <button
+                onClick={async () => {
+                  if (confirm('Archive this completed job?')) {
+                    await archiveJob(job.id, true);
+                    fetchStats();
+                  }
+                }}
+                className="btn-secondary"
+              >
+                <Archive className="w-4 h-4 mr-2" />
+                Archive Job
+              </button>
+            )}
+            {showArchiveControls && job.currentStatus === 'Completed/Delivered' && job.archived === 1 && (
+              <button
+                onClick={async () => {
+                  if (confirm('Restore this job to active status?')) {
+                    await archiveJob(job.id, false);
+                    fetchStats();
+                  }
+                }}
+                className="btn-secondary"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Restore Job
+              </button>
+            )}
+
+            {/* Edit/Save buttons */}
             {isEditing ? (
               <>
                 <button onClick={() => setIsEditing(false)} className="btn-secondary">

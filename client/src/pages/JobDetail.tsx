@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useJobs } from '@/context/JobsContext';
 import { cn, STATUSES, STATUS_COLORS, formatDate, formatDateTime } from '@/lib/utils';
-import { ArrowLeft, Calendar, User, Link as LinkIcon, Package, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Link as LinkIcon, Package, Edit, Trash2, Archive, RotateCcw } from 'lucide-react';
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
-  const { jobs, updateJob, updateJobStatus, deleteJob, fetchStats } = useJobs();
+  const { jobs, updateJob, updateJobStatus, archiveJob, deleteJob, fetchStats } = useJobs();
   const [job, setJob] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -61,6 +61,16 @@ export default function JobDetail() {
     }
   };
 
+  const handleArchive = async (shouldArchive: boolean) => {
+    if (!job) return;
+    try {
+      await archiveJob(job.id, shouldArchive);
+      fetchStats();
+    } catch (error) {
+      console.error('Failed to archive job:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -94,11 +104,29 @@ export default function JobDetail() {
               <span className={cn('badge', STATUS_COLORS[job.currentStatus])}>
                 {job.currentStatus}
               </span>
+              {job.archived === 1 && (
+                <span className="text-xs bg-secondary-100 text-secondary-600 px-2 py-1 rounded">
+                  Archived
+                </span>
+              )}
             </div>
             <p className="text-secondary-500">{job.clientName}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Archive controls for completed jobs */}
+          {job.currentStatus === 'Completed/Delivered' && (
+            <button
+              onClick={() => handleArchive(job.archived !== 1)}
+              className={`btn-secondary ${job.archived === 1 ? 'bg-secondary-200' : ''}`}
+            >
+              {job.archived === 1 ? (
+                <><RotateCcw className="w-4 h-4 mr-2" />Unarchive</>
+              ) : (
+                <><Archive className="w-4 h-4 mr-2" />Archive</>
+              )}
+            </button>
+          )}
           {isEditing ? (
             <>
               <button onClick={() => setIsEditing(false)} className="btn-secondary">
@@ -246,17 +274,31 @@ export default function JobDetail() {
           {/* Status */}
           <div className="card p-4">
             <h2 className="text-lg font-semibold text-secondary-900 mb-4">Status</h2>
-            <select
-              value={job.currentStatus}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              className="input"
-            >
-              {STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
+            {isEditing ? (
+              <select
+                value={editData.currentStatus}
+                onChange={(e) => setEditData({ ...editData, currentStatus: e.target.value })}
+                className="input"
+              >
+                {STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                value={job.currentStatus}
+                onChange={(e) => handleStatusChange(e.target.value)}
+                className="input"
+              >
+                {STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Dates */}
@@ -265,49 +307,22 @@ export default function JobDetail() {
               <Calendar className="w-5 h-5" />
               Dates
             </h2>
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-medium text-secondary-500 uppercase">Order Date</label>
                 <p className="text-secondary-900">{formatDate(job.orderDate)}</p>
               </div>
               <div>
-                <label className="text-xs font-medium text-secondary-500 uppercase">Payment Date</label>
-                {isEditing ? (
-                  <input
-                    type="date"
-                    value={editData.paymentDate ? editData.paymentDate.split('T')[0] : ''}
-                    onChange={(e) => setEditData({ ...editData, paymentDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                    className="input mt-1"
-                  />
-                ) : (
-                  <p className="text-secondary-900">{job.paymentDate ? formatDate(job.paymentDate) : 'Not paid yet'}</p>
-                )}
-              </div>
-              <div>
                 <label className="text-xs font-medium text-secondary-500 uppercase">Target Date</label>
-                {isEditing ? (
-                  <input
-                    type="date"
-                    value={editData.targetDate ? editData.targetDate.split('T')[0] : ''}
-                    onChange={(e) => setEditData({ ...editData, targetDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                    className="input mt-1"
-                  />
-                ) : (
-                  <p className="text-secondary-900">{job.targetDate ? formatDate(job.targetDate) : 'Not set'}</p>
-                )}
+                <p className="text-secondary-900">{job.targetDate ? formatDate(job.targetDate) : 'Not set'}</p>
               </div>
               <div>
-                <label className="text-xs font-medium text-secondary-500 uppercase">Installation Date</label>
-                {isEditing ? (
-                  <input
-                    type="date"
-                    value={editData.installationDate ? editData.installationDate.split('T')[0] : ''}
-                    onChange={(e) => setEditData({ ...editData, installationDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                    className="input mt-1"
-                  />
-                ) : (
-                  <p className="text-secondary-900">{job.installationDate ? formatDate(job.installationDate) : 'Not scheduled'}</p>
-                )}
+                <label className="text-xs font-medium text-secondary-500 uppercase">Start Date</label>
+                <p className="text-secondary-900">{job.startDate ? formatDate(job.startDate) : 'Not recorded'}</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-secondary-500 uppercase">Finish Date</label>
+                <p className="text-secondary-900">{job.finishDate ? formatDate(job.finishDate) : 'Not completed'}</p>
               </div>
             </div>
           </div>
@@ -339,6 +354,11 @@ export default function JobDetail() {
             <p className="text-xs text-secondary-500">
               Updated: {formatDateTime(job.updatedAt)}
             </p>
+            {job.archivedAt && (
+              <p className="text-xs text-secondary-500">
+                Archived: {formatDateTime(job.archivedAt)}
+              </p>
+            )}
           </div>
         </div>
       </div>

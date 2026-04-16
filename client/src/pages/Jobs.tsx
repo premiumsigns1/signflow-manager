@@ -393,6 +393,7 @@ export default function Jobs() {
         <JobModal
           job={selectedJob}
           onClose={() => setSelectedJobId(null)}
+          showArchiveControls={true}
         />
       )}
 

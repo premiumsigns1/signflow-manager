@@ -20,6 +20,10 @@ export interface Job {
   materialsNeeded: string | null;
   installationDate: string | null;
   notes: string | null;
+  startDate: string | null;
+  finishDate: string | null;
+  archived: number | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,6 +50,10 @@ export interface UpdateJobData {
   materialsNeeded?: string | null;
   installationDate?: string | null;
   notes?: string | null;
+  startDate?: string | null;
+  finishDate?: string | null;
+  archived?: number;
+  archivedAt?: string | null;
 }
 
 export interface JobStats {
@@ -63,7 +71,8 @@ interface JobsContextType {
   stats: JobStats | null;
   isLoading: boolean;
   error: string | null;
-  fetchJobs: (params?: { status?: string; search?: string; assignedTo?: string }) => Promise<void>;
+  fetchJobs: (params?: { status?: string; search?: string; assignedTo?: string; includeArchived?: boolean }) => Promise<void>;
+  archiveJob: (id: string, shouldArchive: boolean) => Promise<void>;
   fetchStats: () => Promise<void>;
   createJob: (data: CreateJobData) => Promise<Job>;
   updateJob: (id: string, data: UpdateJobData) => Promise<Job>;
@@ -94,7 +103,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
-  const fetchJobs = useCallback(async (params?: { status?: string; search?: string; assignedTo?: string }) => {
+  const fetchJobs = useCallback(async (params?: { status?: string; search?: string; assignedTo?: string; includeArchived?: boolean }) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -102,6 +111,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
       if (params?.status && params.status !== 'all') qs.set('status', params.status);
       if (params?.search) qs.set('search', params.search);
       if (params?.assignedTo && params.assignedTo !== 'all') qs.set('assignedTo', params.assignedTo);
+      if (params?.includeArchived) qs.set('includeArchived', 'true');
 
       const query = qs.toString();
       const data = await apiFetch<Job[]>(`/jobs${query ? `?${query}` : ''}`);
@@ -154,6 +164,15 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
     setJobs(prev => prev.filter(j => j.id !== id));
   };
 
+  const archiveJob = async (id: string, shouldArchive: boolean) => {
+    const job = await apiFetch<Job>(`/jobs/${id}/archive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ archive: shouldArchive }),
+    });
+    setJobs(prev => prev.map(j => j.id === id ? job : j));
+    if (selectedJob?.id === id) setSelectedJob(job);
+  };
+
   return (
     <JobsContext.Provider
       value={{
@@ -168,6 +187,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         updateJob,
         updateJobStatus,
         deleteJob,
+        archiveJob,
         selectedJob,
         setSelectedJob,
       }}
